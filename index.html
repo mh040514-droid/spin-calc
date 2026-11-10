@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>스핀코팅 RPM 계산기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#fff; --ink:#1b1f24; --sub:#5b6572; --line:#e3e6ea;
+    --a:#8a94a3; --b:#e07b28; --c:#1f6fd1; --ok:#1a8a4a; --warn:#c98a00; --bad:#c43c3c;
+    --okbg:#e7f5ec; --warnbg:#fdf4dc; --badbg:#fbe9e9;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans KR",system-ui,sans-serif;font-size:15px;line-height:1.55}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 18px 60px}
+  header h1{margin:0 0 4px;font-size:24px}
+  header p{margin:0;color:var(--sub)}
+  .grid{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:18px;margin-top:20px}
+  @media (max-width:860px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px}
+  .card h2{font-size:16px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  .step{display:inline-flex;width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;align-items:center;justify-content:center}
+  .mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:6px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+  th{font-size:12px;color:var(--sub);font-weight:500}
+  th:first-child,td:first-child{text-align:center}
+  input[type=number]{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font:inherit;font-family:"JetBrains Mono",monospace;text-align:right;background:#fff}
+  input[type=number]:focus{outline:2px solid var(--c);border-color:transparent}
+  .btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  button,select{font:inherit;font-size:13px;padding:6px 12px;border-radius:7px;border:1px solid var(--line);background:#fff;cursor:pointer}
+  button:hover{background:#f0f2f5}
+  button.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+  button.x{border:none;background:none;color:var(--sub);padding:2px 6px}
+  .target-row{display:flex;gap:10px;align-items:center}
+  .target-row input{font-size:20px;padding:10px 12px}
+  .unit{color:var(--sub)}
+  .models{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  @media (max-width:640px){.models{grid-template-columns:1fr}}
+  .m{border:1px solid var(--line);border-radius:10px;padding:12px;border-top:4px solid}
+  .m.A{border-top-color:var(--a)} .m.B{border-top-color:var(--b)} .m.C{border-top-color:var(--c)}
+  .m .name{font-weight:700;font-size:14px}
+  .m .desc{font-size:12px;color:var(--sub);min-height:36px}
+  .m .rpm{font-size:26px;font-weight:600;margin:6px 0 2px}
+  .m .kv{font-size:12px;color:var(--sub)}
+  .badge{display:inline-block;font-size:12px;padding:2px 8px;border-radius:999px;margin-top:6px}
+  .ok{background:var(--okbg);color:var(--ok)} .warn{background:var(--warnbg);color:var(--warn)} .bad{background:var(--badbg);color:var(--bad)}
+  .note{font-size:12px;color:var(--sub);margin-top:10px}
+  .alert{padding:10px 12px;border-radius:8px;font-size:13px;margin-top:10px}
+  svg text{font-family:"Noto Sans KR",sans-serif;font-size:11px;fill:var(--sub)}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--sub);margin-top:6px}
+  .legend i{display:inline-block;width:18px;height:3px;vertical-align:middle;margin-right:5px}
+  .errtbl td.e{font-family:"JetBrains Mono",monospace}
+  .full{grid-column:1/-1}
+  details summary{cursor:pointer;color:var(--sub);font-size:13px}
+  .refsel{font-size:12px;padding:3px 6px;margin-top:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>스핀코팅 RPM 계산기</h1>
+    <p>실측 데이터로 두께 모델을 보정하고, 목표 두께에 맞는 회전속도를 계산합니다. 기준 데이터: 나노종합기술원 포토 실습 (TEL Mark8 Track · KLA-SFX200 13-point)</p>
+  </header>
+
+  <div class="grid">
+    <!-- 데이터 입력 -->
+    <section class="card">
+      <h2><span class="step">1</span>실측 데이터</h2>
+      <table id="dataTbl">
+        <thead><tr><th>사용</th><th>RPM</th><th>두께 (Å)</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="btns">
+        <button id="addRow">+ 행 추가</button>
+        <select id="preset">
+          <option value="">데이터 불러오기…</option>
+          <option value="track">Track 실습 5점 (1,169~5,654rpm)</option>
+          <option value="coa">COA 검증 실측 7점 (Dongjin 7727)</option>
+        </select>
+      </div>
+      <p class="note">체크를 끄면 그 점은 보정 계산에서 빠집니다. 조건(PR·베이크)이 다른 데이터는 섞지 마세요.</p>
+    </section>
+
+    <!-- 목표 두께 -->
+    <section class="card">
+      <h2><span class="step">2</span>목표 두께</h2>
+      <div class="target-row">
+        <input type="number" id="target" value="15500" step="10" min="1" aria-label="목표 두께">
+        <span class="unit">Å</span>
+      </div>
+      <div id="alerts"></div>
+      <h2 style="margin-top:18px"><span class="step">3</span>모델별 추천 RPM</h2>
+      <div class="models">
+        <div class="m A">
+          <div class="name">① 기준점 √RPM</div>
+          <div class="desc">T = x/√RPM, 기준점 1개로 상수 결정 (실습 초기 방식)</div>
+          <div class="rpm mono" id="rpmA">–</div>
+          <div class="kv mono" id="kvA"></div>
+          <select class="refsel" id="refSel" aria-label="기준점"></select>
+          <div id="badgeA"></div>
+        </div>
+        <div class="m B">
+          <div class="name">② √RPM 최소제곱</div>
+          <div class="desc">지수 0.5 고정, 전체 데이터로 상수 x 보정</div>
+          <div class="rpm mono" id="rpmB">–</div>
+          <div class="kv mono" id="kvB"></div>
+          <div id="badgeB"></div>
+        </div>
+        <div class="m C">
+          <div class="name">③ 지수 보정</div>
+          <div class="desc">T = k·RPM<sup>−n</sup>, k와 n을 데이터로 함께 결정</div>
+          <div class="rpm mono" id="rpmC">–</div>
+          <div class="kv mono" id="kvC"></div>
+          <div id="badgeC"></div>
+        </div>
+      </div>
+      <p class="note">계산값은 예측입니다. 실제 코팅·측정으로 확인한 뒤 그 값을 데이터에 추가하면 모델이 다시 보정됩니다.</p>
+    </section>
+
+    <!-- 그래프 -->
+    <section class="card full">
+      <h2><span class="step">4</span>Spin Curve</h2>
+      <svg id="chart" viewBox="0 0 900 380" width="100%" role="img" aria-label="RPM 대비 두께 그래프"></svg>
+      <div class="legend">
+        <span><i style="background:var(--a)"></i>① 기준점 √RPM</span>
+        <span><i style="background:var(--b)"></i>② √RPM 최소제곱</span>
+        <span><i style="background:var(--c)"></i>③ 지수 보정</span>
+        <span><i style="background:#1a8a4a33;height:10px"></i>권장 2,000–3,000rpm</span>
+        <span><i style="background:#c43c3c22;height:10px"></i>공정 범위 밖 (&lt;1,000 / &gt;4,000rpm)</span>
+      </div>
+    </section>
+
+    <!-- 오차 비교 -->
+    <section class="card full">
+      <h2><span class="step">5</span>모델 검증: 실측 대비 오차</h2>
+      <div style="overflow-x:auto">
+      <table class="errtbl" id="errTbl"></table>
+      </div>
+      <p class="note">오차 = (모델 예측 − 실측) / 실측. "③ 교차검증"은 그 점을 빼고 나머지로 보정한 뒤 그 점을 예측한 오차입니다(데이터 3점 이상일 때). 처음 보는 조건에서 모델이 얼마나 맞는지 보여 줍니다.</p>
+      <details style="margin-top:8px">
+        <summary>공정 윈도우 기준</summary>
+        <p class="note">1,000–4,000rpm 공정 진행 가능 · 2,000–3,000rpm 권장 · 5,654rpm에서 원심력 과다로 Edge Bleed 관측 (포토 실습 결과)</p>
+      </details>
+    </section>
+  </div>
+</div>
+
+<script>
+/* ===== 계산 (순수 함수) ===== */
+const MODEL = {
+  // ① 기준점 1개: x = T·√R
+  refK(pt){ return pt.t * Math.sqrt(pt.r); },
+  // ② 지수 0.5 고정, 최소제곱: x = Σ T·R^-0.5 / Σ R^-1
+  lsqK(pts){
+    let num=0, den=0;
+    for(const p of pts){ const x=1/Math.sqrt(p.r); num+=p.t*x; den+=x*x; }
+    return den>0 ? num/den : NaN;
+  },
+  // ③ ln T = ln k − n ln R 선형회귀
+  powerFit(pts){
+    const n=pts.length; if(n<2) return null;
+    let sx=0,sy=0,sxx=0,sxy=0;
+    for(const p of pts){ const x=Math.log(p.r), y=Math.log(p.t); sx+=x; sy+=y; sxx+=x*x; sxy+=x*y; }
+    const d=n*sxx-sx*sx; if(Math.abs(d)<1e-12) return null;
+    const slope=(n*sxy-sx*sy)/d, icpt=(sy-slope*sx)/n;
+    const my=sy/n; let ssr=0, sst=0;
+    for(const p of pts){ const y=Math.log(p.t), f=icpt+slope*Math.log(p.r); ssr+=(y-f)**2; sst+=(y-my)**2; }
+    return { k:Math.exp(icpt), n:-slope, r2: sst>0 ? 1-ssr/sst : 1 };
+  },
+  thick(k,n,r){ return k*Math.pow(r,-n); },
+  rpmFor(k,n,t){ return Math.pow(k/t, 1/n); }
+};
+
+/* ===== 데이터 ===== */
+const PRESETS = {
+  track: [[1169,15266],[1323,14570],[2700,10854],[4402,8668],[5654,7701]],
+  coa:   [[1200,3441],[1300,3294],[1400,3145],[1500,3065],[1600,2993],[1700,2909],[1800,2828]]
+};
+let rows = PRESETS.track.map(([r,t])=>({r,t,on:true}));
+let refIdx = 2; // 2,700rpm (실습 초기 기준점)
+try{
+  const s = JSON.parse(localStorage.getItem('spinCalc')||'null');
+  if(s && Array.isArray(s.rows) && s.rows.length){ rows=s.rows; refIdx=s.refIdx??0; document.getElementById('target').value=s.target??15500; }
+}catch(e){}
+function save(){ try{ localStorage.setItem('spinCalc', JSON.stringify({rows, refIdx, target:+document.getElementById('target').value})); }catch(e){} }
+
+const $ = id => document.getElementById(id);
+const fmt = (v,d=0) => Number.isFinite(v) ? v.toLocaleString('ko-KR',{maximumFractionDigits:d,minimumFractionDigits:d}) : '–';
+const pct = v => Number.isFinite(v) ? (v>0?'+':'')+v.toFixed(2)+'%' : '–';
+
+function renderTable(){
+  const tb = $('dataTbl').querySelector('tbody'); tb.innerHTML='';
+  rows.forEach((p,i)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML = `<td><input type="checkbox" ${p.on?'checked':''} aria-label="사용"></td>
+      <td><input type="number" value="${p.r}" step="1" min="1" aria-label="RPM"></td>
+      <td><input type="number" value="${p.t}" step="1" min="1" aria-label="두께"></td>
+      <td><button class="x" title="삭제">✕</button></td>`;
+    const [cb, ir, it] = tr.querySelectorAll('input');
+    cb.onchange = ()=>{ p.on=cb.checked; update(); };
+    ir.oninput = ()=>{ p.r=+ir.value; update(false); };
+    it.oninput = ()=>{ p.t=+it.value; update(false); };
+    tr.querySelector('button').onclick = ()=>{ rows.splice(i,1); if(refIdx>=rows.length) refIdx=Math.max(0,rows.length-1); renderTable(); update(); };
+    tb.appendChild(tr);
+  });
+}
+
+function windowStatus(r){
+  if(!Number.isFinite(r)) return {cls:'bad', txt:'계산 불가'};
+  if(r>=2000 && r<=3000) return {cls:'ok', txt:'권장 범위 (2,000–3,000)'};
+  if(r>=1000 && r<=4000) return {cls:'warn', txt:'진행 가능, 권장 범위 밖'};
+  if(r>4000) return {cls:'bad', txt: r>=5500 ? '범위 밖 · Edge Bleed 위험' : '공정 범위 밖 (>4,000)'};
+  return {cls:'bad', txt:'공정 범위 밖 (<1,000)'};
+}
+const badge = s => `<span class="badge ${s.cls}">${s.txt}</span>`;
+
+function update(rerenderSel=true){
+  save();
+  const pts = rows.filter(p=>p.on && p.r>0 && p.t>0);
+  const T = +$('target').value;
+
+  // 기준점 선택 목록
+  const sel=$('refSel');
+  if(rerenderSel || sel.options.length!==rows.length){
+    sel.innerHTML = rows.map((p,i)=>`<option value="${i}" ${i===refIdx?'selected':''}>기준점: ${fmt(p.r)}rpm / ${fmt(p.t)}Å</option>`).join('');
+  }
+  const ref = rows[refIdx];
+  const kA = ref && ref.r>0 && ref.t>0 ? MODEL.refK(ref) : NaN;
+  const kB = pts.length ? MODEL.lsqK(pts) : NaN;
+  const fit = MODEL.powerFit(pts);
+
+  const rA = MODEL.rpmFor(kA,0.5,T), rB = MODEL.rpmFor(kB,0.5,T);
+  const rC = fit ? MODEL.rpmFor(fit.k,fit.n,T) : NaN;
+  $('rpmA').textContent = Number.isFinite(rA)? fmt(rA)+' rpm':'–';
+  $('rpmB').textContent = Number.isFinite(rB)? fmt(rB)+' rpm':'–';
+  $('rpmC').textContent = Number.isFinite(rC)? fmt(rC)+' rpm':'–';
+  $('kvA').textContent = 'x = '+fmt(kA);
+  $('kvB').textContent = 'x = '+fmt(kB);
+  $('kvC').innerHTML = fit ? `k = ${fmt(fit.k)} · n = ${fit.n.toFixed(3)}<br>R² = ${fit.r2.toFixed(4)}` : '데이터 2점 이상 필요';
+  $('badgeA').innerHTML = badge(windowStatus(rA));
+  $('badgeB').innerHTML = badge(windowStatus(rB));
+  $('badgeC').innerHTML = fit ? badge(windowStatus(rC)) : '';
+
+  // 경고
+  const al=[];
+  if(!(T>0)) al.push(['bad','목표 두께를 입력하세요.']);
+  if(pts.length && Number.isFinite(rC)){
+    const lo=Math.min(...pts.map(p=>p.r)), hi=Math.max(...pts.map(p=>p.r));
+    if(rC<lo*0.98 || rC>hi*1.02) al.push(['warn',`추천 RPM(${fmt(rC)})이 실측 데이터 범위(${fmt(lo)}–${fmt(hi)}rpm) 밖이라 외삽입니다. 실제 코팅으로 꼭 확인하세요.`]);
+  }
+  if(pts.length<3) al.push(['warn','데이터가 3점 미만이면 모델 검증(교차검증)을 할 수 없습니다.']);
+  $('alerts').innerHTML = al.map(([c,t])=>`<div class="alert ${c}">${t}</div>`).join('');
+
+  renderErr(pts, kA, kB, fit);
+  renderChart(pts, kA, kB, fit, T, [rA,rB,rC]);
+}
+
+function renderErr(pts,kA,kB,fit){
+  const sorted=[...pts].sort((a,b)=>a.r-b.r);
+  const loo = p => {
+    if(pts.length<3) return NaN;
+    const f = MODEL.powerFit(pts.filter(q=>q!==p));
+    return f ? (MODEL.thick(f.k,f.n,p.r)-p.t)/p.t*100 : NaN;
+  };
+  const e = (k,n,p) => (MODEL.thick(k,n,p.r)-p.t)/p.t*100;
+  const cell = v => {
+    const a=Math.abs(v); const c = !Number.isFinite(v)?'':a<=2?'color:var(--ok)':a<=5?'color:var(--warn)':'color:var(--bad)';
+    return `<td class="e" style="${c}">${pct(v)}</td>`;
+  };
+  let maxA=0,maxB=0,maxC=0,maxL=0;
+  let body = sorted.map(p=>{
+    const a=e(kA,0.5,p), b=e(kB,0.5,p), c=fit?e(fit.k,fit.n,p):NaN, l=loo(p);
+    maxA=Math.max(maxA,Math.abs(a)||0); maxB=Math.max(maxB,Math.abs(b)||0); maxC=Math.max(maxC,Math.abs(c)||0); maxL=Math.max(maxL,Math.abs(l)||0);
+    return `<tr><td class="mono">${fmt(p.r)}</td><td class="mono">${fmt(p.t)}</td>${cell(a)}${cell(b)}${cell(c)}${cell(l)}</tr>`;
+  }).join('');
+  const has = pts.length>0;
+  $('errTbl').innerHTML = `<thead><tr><th>RPM</th><th>실측 (Å)</th><th>① 기준점</th><th>② √RPM LSQ</th><th>③ 지수 보정</th><th>③ 교차검증</th></tr></thead>
+    <tbody>${body}</tbody>
+    ${has?`<tfoot><tr style="font-weight:700"><td colspan="2">최대 |오차|</td>${cell(maxA)}${cell(maxB)}${fit?cell(maxC):'<td>–</td>'}${pts.length>=3?cell(maxL):'<td>–</td>'}</tr></tfoot>`:''}`;
+}
+
+function renderChart(pts,kA,kB,fit,T,recs){
+  const svg=$('chart'), W=900,H=380, m={l:64,r:20,t:16,b:44};
+  const vals = pts.map(p=>p.r).concat(recs.filter(Number.isFinite));
+  if(!pts.length){ svg.innerHTML=`<text x="${W/2}" y="${H/2}" text-anchor="middle">데이터를 입력하세요</text>`; return; }
+  let x0=Math.min(...vals)*0.85, x1=Math.max(...vals)*1.08;
+  x0=Math.max(200,Math.floor(x0/500)*500); x1=Math.ceil(x1/500)*500;
+  const ts = pts.map(p=>p.t).concat(T>0?[T]:[]);
+  let y0=Math.min(...ts)*0.85, y1=Math.max(...ts)*1.08;
+  const ystep = niceStep((y1-y0)/6); y0=Math.floor(y0/ystep)*ystep; y1=Math.ceil(y1/ystep)*ystep;
+  const X=r=>m.l+(r-x0)/(x1-x0)*(W-m.l-m.r), Y=t=>m.t+(1-(t-y0)/(y1-y0))*(H-m.t-m.b);
+  let s='';
+  const band=(a,b,fill)=>{ a=Math.max(a,x0); b=Math.min(b,x1); if(b>a) s+=`<rect x="${X(a)}" y="${m.t}" width="${X(b)-X(a)}" height="${H-m.t-m.b}" fill="${fill}"/>`; };
+  band(x0,1000,'#c43c3c18'); band(4000,x1,'#c43c3c18'); band(2000,3000,'#1a8a4a1f');
+  // grid
+  const xstep = niceStep((x1-x0)/8);
+  for(let r=Math.ceil(x0/xstep)*xstep;r<=x1;r+=xstep){ s+=`<line x1="${X(r)}" x2="${X(r)}" y1="${m.t}" y2="${H-m.b}" stroke="#e3e6ea"/><text x="${X(r)}" y="${H-m.b+16}" text-anchor="middle">${fmt(r)}</text>`; }
+  for(let t=y0;t<=y1+1e-9;t+=ystep){ s+=`<line x1="${m.l}" x2="${W-m.r}" y1="${Y(t)}" y2="${Y(t)}" stroke="#e3e6ea"/><text x="${m.l-8}" y="${Y(t)+4}" text-anchor="end">${fmt(t)}</text>`; }
+  s+=`<text x="${(m.l+W-m.r)/2}" y="${H-6}" text-anchor="middle">회전속도 (rpm)</text>`;
+  s+=`<text transform="translate(14 ${(m.t+H-m.b)/2}) rotate(-90)" text-anchor="middle">두께 (Å)</text>`;
+  // curves
+  const curve=(k,n,col,dash)=>{ if(!Number.isFinite(k)) return; let d=''; for(let i=0;i<=120;i++){ const r=x0+(x1-x0)*i/120; const t=MODEL.thick(k,n,r); if(t<y0||t>y1) continue; d+=(d?'L':'M')+X(r).toFixed(1)+' '+Y(t).toFixed(1); } s+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="2.2" ${dash?'stroke-dasharray="5 4"':''}/>`; };
+  curve(kA,0.5,'#8a94a3',true); curve(kB,0.5,'#e07b28',false); if(fit) curve(fit.k,fit.n,'#1f6fd1',false);
+  // target line
+  if(T>y0 && T<y1){ s+=`<line x1="${m.l}" x2="${W-m.r}" y1="${Y(T)}" y2="${Y(T)}" stroke="#1b1f24" stroke-dasharray="3 4"/><text x="${W-m.r-4}" y="${Y(T)-6}" text-anchor="end" style="fill:#1b1f24">목표 ${fmt(T)}Å</text>`; }
+  if(fit && Number.isFinite(recs[2]) && recs[2]>=x0 && recs[2]<=x1){ s+=`<circle cx="${X(recs[2])}" cy="${Y(T)}" r="6" fill="none" stroke="#1f6fd1" stroke-width="2.5"/>`; }
+  // points
+  for(const p of pts){ s+=`<circle cx="${X(p.r)}" cy="${Y(p.t)}" r="4.5" fill="#1b1f24"><title>${fmt(p.r)}rpm · ${fmt(p.t)}Å</title></circle>`; }
+  s+=`<rect x="${m.l}" y="${m.t}" width="${W-m.l-m.r}" height="${H-m.t-m.b}" fill="none" stroke="#c9ced5"/>`;
+  svg.innerHTML=s;
+}
+function niceStep(raw){ const p=Math.pow(10,Math.floor(Math.log10(raw))); const f=raw/p; return (f<=1?1:f<=2?2:f<=5?5:10)*p; }
+
+/* ===== 이벤트 ===== */
+$('addRow').onclick=()=>{ rows.push({r:2000,t:10000,on:true}); renderTable(); update(); };
+$('preset').onchange=e=>{ const v=e.target.value; if(!v) return; rows=PRESETS[v].map(([r,t])=>({r,t,on:true})); refIdx = v==='track'?2:0; e.target.value=''; renderTable(); update(); };
+$('refSel').onchange=e=>{ refIdx=+e.target.value; update(false); };
+$('target').oninput=()=>update(false);
+renderTable(); update();
+</script>
+</body>
+</html>
